@@ -23,6 +23,21 @@ from lunar_free_return.types import SimulationResult
 
 
 def _animation_limits(axis, probe_km: np.ndarray, moon_km: np.ndarray) -> None:
+    """Set animation bounds covering the probe and Moon paths.
+
+    Parameters
+    ----------
+    axis:
+        Matplotlib axes to update.
+    probe_km:
+        Probe positions in kilometers with shape ``(N, 2)``.
+    moon_km:
+        Moon positions in kilometers with shape ``(N, 2)``.
+
+    Returns
+    -------
+    None
+    """
     x_all = np.concatenate([probe_km[:, 0], moon_km[:, 0]])
     y_all = np.concatenate([probe_km[:, 1], moon_km[:, 1]])
     extent = max(float(x_all.max() - x_all.min()), float(y_all.max() - y_all.min()))
@@ -32,7 +47,22 @@ def _animation_limits(axis, probe_km: np.ndarray, moon_km: np.ndarray) -> None:
 
 
 def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Path:
-    """Create a GIF animation of a free-return trajectory."""
+    """Create a GIF animation of a free-return trajectory.
+
+    Parameters
+    ----------
+    result:
+        Simulation result to animate.
+    output_dir:
+        Directory where the GIF is written.
+    fps:
+        Output GIF frames per second.
+
+    Returns
+    -------
+    Path
+        Path to the generated GIF file.
+    """
     probe, speeds, moon, moon_distance, days, closest_index = trajectory_data(result.history, result.moon)
     count = len(probe)
     apogee_index = result.apogee_index
@@ -75,6 +105,18 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
     axis.legend(loc="lower right", fontsize=9, framealpha=0.95, facecolor="#ffffff", edgecolor="#cbd5e1")
 
     def phase_label(index: int) -> str:
+        """Return the display label for a trajectory sample.
+
+        Parameters
+        ----------
+        index:
+            Trajectory sample index.
+
+        Returns
+        -------
+        str
+            Phase label shown in the animation HUD.
+        """
         if index < flyby_start:
             return "Outbound"
         if index <= flyby_end:
@@ -82,6 +124,18 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
         return "Return"
 
     def phase_color(index: int) -> str:
+        """Return the probe color for a trajectory sample.
+
+        Parameters
+        ----------
+        index:
+            Trajectory sample index.
+
+        Returns
+        -------
+        str
+            Hex color string associated with the sample's mission phase.
+        """
         if index < flyby_start:
             return OUTBOUND_COLOR
         if index <= flyby_end:
@@ -89,6 +143,13 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
         return RETURN_COLOR
 
     def init():
+        """Initialize all animated artists before frame updates.
+
+        Returns
+        -------
+        tuple
+            Matplotlib artists that participate in blitting.
+        """
         outbound_line.set_data([], [])
         flyby_line.set_data([], [])
         return_line.set_data([], [])
@@ -101,6 +162,19 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
         return (outbound_line, flyby_line, return_line, moon_line, probe_dot, *moon_patches, hud, closest_marker)
 
     def update(frame_index: int):
+        """Update animated artists for one sampled trajectory frame.
+
+        Parameters
+        ----------
+        frame_index:
+            Index into the sampled animation frame list, not the raw trajectory
+            sample index.
+
+        Returns
+        -------
+        tuple
+            Matplotlib artists that were updated for blitting.
+        """
         index = int(indices[frame_index])
 
         outbound_end = min(index + 1, flyby_start + 1)

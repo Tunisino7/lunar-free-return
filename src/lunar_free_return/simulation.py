@@ -28,7 +28,19 @@ from lunar_free_return.types import (
 
 
 def preset(case: TrajectoryCase | str) -> SimulationConfig:
-    """Return a configured preset for one Schwaniger case."""
+    """Return the validated preset for one Schwaniger case.
+
+    Parameters
+    ----------
+    case:
+        Case identifier as a ``TrajectoryCase`` or matching string value
+        (``"Ai"``, ``"Aii"``, ``"Bi"``, or ``"Bii"``).
+
+    Returns
+    -------
+    SimulationConfig
+        Immutable configuration preset for the selected case.
+    """
     return PRESETS[TrajectoryCase(case)]
 
 
@@ -38,7 +50,27 @@ def classify_return(
     return_detected: bool,
     collision_name: str | None,
 ) -> tuple[ReturnType, str]:
-    """Classify the trajectory from distance and collision indicators."""
+    """Classify a propagated trajectory.
+
+    Parameters
+    ----------
+    min_moon_distance:
+        Minimum probe-Moon center distance in meters.
+    max_earth_distance:
+        Maximum probe-Earth center distance in meters.
+    return_detected:
+        Whether the probe crossed the configured Earth-return threshold after
+        apogee.
+    collision_name:
+        Name of the body hit by the probe, or ``None`` when no collision was
+        detected.
+
+    Returns
+    -------
+    tuple[ReturnType, str]
+        Trajectory classification and a diagnostic explanation intended for
+        reports and CLI output.
+    """
     if collision_name == "Moon":
         return (
             ReturnType.LUNAR_IMPACT,
@@ -87,7 +119,21 @@ def classify_return(
 def build_initial_conditions(
     config: SimulationConfig,
 ) -> tuple[StateVector, MassiveBody, float]:
-    """Build the probe state and phased Moon for a free-return trajectory."""
+    """Build the initial probe state and phased Moon.
+
+    Parameters
+    ----------
+    config:
+        Simulation configuration containing departure altitude, speed factor,
+        Moon phase adjustment, and orbital direction.
+
+    Returns
+    -------
+    tuple[StateVector, MassiveBody, float]
+        Initial probe state ``[x, y, vx, vy]`` in meters and meters per second,
+        the phased Moon body used for propagation, and the scalar injection
+        speed in meters per second.
+    """
     perigee_radius = EARTH_RADIUS + config.departure_altitude
     apogee_radius = MOON_ORBIT_RADIUS
     initial_speed = injection_speed(perigee_radius, apogee_radius) * config.speed_factor
@@ -106,7 +152,20 @@ def build_initial_conditions(
 
 
 def simulate(config: SimulationConfig | None = None) -> SimulationResult:
-    """Run a free-return trajectory simulation."""
+    """Run a complete free-return trajectory simulation.
+
+    Parameters
+    ----------
+    config:
+        Simulation configuration. When omitted, the default Ai preset-style
+        configuration is used.
+
+    Returns
+    -------
+    SimulationResult
+        Full propagation history plus flyby, apogee, return, and diagnostic
+        metrics.
+    """
     config = config or SimulationConfig()
     initial_state, moon, initial_speed = build_initial_conditions(config)
 
@@ -172,5 +231,19 @@ def simulate(config: SimulationConfig | None = None) -> SimulationResult:
 
 
 def with_case(case: TrajectoryCase | str, **overrides: object) -> SimulationConfig:
-    """Return a preset config with selected dataclass field overrides."""
+    """Create a case preset with selected field overrides.
+
+    Parameters
+    ----------
+    case:
+        Case identifier as a ``TrajectoryCase`` or matching string.
+    **overrides:
+        Dataclass field values to replace on the selected preset. Field names
+        must match ``SimulationConfig`` attributes.
+
+    Returns
+    -------
+    SimulationConfig
+        New immutable configuration with the requested overrides applied.
+    """
     return replace(preset(case), **overrides)

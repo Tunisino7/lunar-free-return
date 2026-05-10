@@ -19,7 +19,26 @@ def rk4_step(
     derivative: Derivative,
     bodies: Sequence[MassiveBody],
 ) -> StateVector:
-    """Advance ``state`` by one fourth-order Runge-Kutta step."""
+    """Advance a state vector by one fourth-order Runge-Kutta step.
+
+    Parameters
+    ----------
+    time:
+        Current simulation time in seconds.
+    step:
+        Integration step size in seconds.
+    state:
+        Current state vector ``[x, y, vx, vy]`` in meters and meters per second.
+    derivative:
+        Function that maps ``(time, state, bodies)`` to the state derivative.
+    bodies:
+        Massive bodies passed through to ``derivative``.
+
+    Returns
+    -------
+    StateVector
+        State vector advanced by ``step`` seconds.
+    """
     half_step = step / 2.0
     k1 = derivative(time, state, bodies)
     k2 = derivative(time + half_step, state + k1 * half_step, bodies)
@@ -33,6 +52,23 @@ def _collision_body(
     time: float,
     bodies: Sequence[MassiveBody],
 ) -> MassiveBody | None:
+    """Find the first body whose physical radius contains the probe.
+
+    Parameters
+    ----------
+    state:
+        Probe state vector ``[x, y, vx, vy]`` in meters and meters per second.
+    time:
+        Current simulation time in seconds.
+    bodies:
+        Bodies to test for intersection.
+
+    Returns
+    -------
+    MassiveBody | None
+        First intersected body, or ``None`` if the probe is outside all body
+        radii.
+    """
     for body in bodies:
         dx = state[0] - body.position_x(time)
         dy = state[1] - body.position_y(time)
@@ -48,7 +84,29 @@ def propagate_trajectory(
     time_step: float,
     stop_on_collision: bool = True,
 ) -> SimulationHistory:
-    """Propagate a probe under the gravity of ``bodies``."""
+    """Propagate a probe under point-mass gravity.
+
+    Parameters
+    ----------
+    initial_state:
+        Initial probe state ``[x, y, vx, vy]`` in meters and meters per second.
+    bodies:
+        Massive bodies included in the gravitational model and collision checks.
+    duration:
+        Maximum propagation time in seconds.
+    time_step:
+        RK4 integration step in seconds. The final step is shortened when needed
+        so the simulation lands exactly on ``duration``.
+    stop_on_collision:
+        When ``True``, stop as soon as the probe intersects a body's physical
+        radius. When ``False``, keep propagating and store the latest detected
+        collision body.
+
+    Returns
+    -------
+    SimulationHistory
+        Time samples, state samples, and optional collision body.
+    """
     state = np.asarray(initial_state, dtype=float)
     max_steps = int(duration / time_step) + 2
     times = np.empty(max_steps, dtype=float)

@@ -28,7 +28,20 @@ RETURN_COLOR = "#ef5350"
 
 
 def body_positions(history: SimulationHistory, body: MassiveBody) -> np.ndarray:
-    """Return body positions for all recorded times."""
+    """Compute body positions at every recorded sample time.
+
+    Parameters
+    ----------
+    history:
+        Simulation history providing the time samples.
+    body:
+        Body whose position should be evaluated.
+
+    Returns
+    -------
+    np.ndarray
+        Array with shape ``(N, 2)`` containing ``[x, y]`` positions in meters.
+    """
     return np.array([body.position(t) for t in history.times], dtype=float)
 
 
@@ -36,7 +49,22 @@ def trajectory_data(
     history: SimulationHistory,
     moon: MassiveBody,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
-    """Extract trajectory arrays in kilometers and days."""
+    """Extract plot-ready trajectory arrays.
+
+    Parameters
+    ----------
+    history:
+        Propagated probe state history in SI units.
+    moon:
+        Phased Moon body used to compute lunar positions.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]
+        Probe positions in kilometers, probe speeds in kilometers per second,
+        Moon positions in kilometers, probe-Moon distances in kilometers, times
+        in days, and the closest lunar approach index.
+    """
     probe_km = history.states[:, :2] / 1e3
     speeds_km_s = np.linalg.norm(history.states[:, 2:4], axis=1) / 1e3
     moon_km = body_positions(history, moon) / 1e3
@@ -47,7 +75,21 @@ def trajectory_data(
 
 
 def sampled_indices(total: int, max_frames: int = 400) -> np.ndarray:
-    """Return evenly sampled frame indices for animation."""
+    """Build a bounded set of frame indices.
+
+    Parameters
+    ----------
+    total:
+        Total number of samples in the source trajectory.
+    max_frames:
+        Maximum number of indices to return.
+
+    Returns
+    -------
+    np.ndarray
+        Monotonic integer indices that always include the final trajectory
+        sample.
+    """
     step = max(1, total // min(total, max_frames))
     indices = np.arange(0, total, step)
     if indices[-1] != total - 1:
@@ -62,7 +104,24 @@ def draw_moon_orbit(
     linewidth: float = 0.8,
     label: str | None = "Moon orbit",
 ) -> None:
-    """Draw the mean circular lunar orbit in kilometers."""
+    """Draw the mean circular lunar orbit in kilometers.
+
+    Parameters
+    ----------
+    axis:
+        Matplotlib axes that receive the orbit line.
+    color:
+        Line color.
+    linewidth:
+        Line width in points.
+    label:
+        Optional legend label. Pass ``None`` to exclude the orbit from the
+        legend.
+
+    Returns
+    -------
+    None
+    """
     theta = np.linspace(0.0, 2.0 * np.pi, 500)
     axis.plot(
         MOON_ORBIT_RADIUS / 1e3 * np.cos(theta),
@@ -84,7 +143,31 @@ def draw_body_with_halos(
     label: str | None = None,
     zorder: int = 3,
 ) -> list[Circle]:
-    """Draw a body disk with faint visual halos."""
+    """Draw a body disk with faint visual halos.
+
+    Parameters
+    ----------
+    axis:
+        Matplotlib axes that receive the patches.
+    center:
+        Body center in kilometers as ``(x, y)``.
+    radius:
+        Visible disk radius in kilometers.
+    color:
+        Disk and halo color.
+    halo_count:
+        Number of translucent halo rings to draw behind the disk.
+    label:
+        Optional legend label attached to the main disk.
+    zorder:
+        Drawing order for the main disk.
+
+    Returns
+    -------
+    list[Circle]
+        Halo patches followed by the main disk patch. Animations can update all
+        returned patch centers together.
+    """
     patches: list[Circle] = []
     for index in range(halo_count, 0, -1):
         halo_radius = radius * (1.0 + index * 0.55)
@@ -113,7 +196,23 @@ def configure_space_axis(
     ylabel: str = "y (km)",
     title_fontsize: int = 14,
 ) -> None:
-    """Apply standard formatting for spatial axes."""
+    """Apply standard formatting for a two-dimensional space plot.
+
+    Parameters
+    ----------
+    axis:
+        Matplotlib axes to configure.
+    title:
+        Optional axes title.
+    xlabel, ylabel:
+        Axis labels.
+    title_fontsize:
+        Title font size in points.
+
+    Returns
+    -------
+    None
+    """
     axis.set_aspect("equal", adjustable="box")
     axis.set_xlabel(xlabel)
     axis.set_ylabel(ylabel)
@@ -125,13 +224,39 @@ def configure_space_axis(
 
 
 def save_figure(figure: Figure, path: Path, *, dpi: int = 200) -> Figure:
-    """Save a figure and return it for optional further use."""
+    """Save a Matplotlib figure to disk.
+
+    Parameters
+    ----------
+    figure:
+        Figure to save.
+    path:
+        Destination path. Parent directories are created when needed.
+    dpi:
+        Output resolution in dots per inch.
+
+    Returns
+    -------
+    Figure
+        The same figure object, allowing callers to keep using or testing it.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, dpi=dpi, bbox_inches="tight")
     return figure
 
 
 def _style_axis(axis: Axes) -> None:
+    """Apply the light report style used by all static plots.
+
+    Parameters
+    ----------
+    axis:
+        Matplotlib axes to style.
+
+    Returns
+    -------
+    None
+    """
     axis.set_facecolor("#f8fafc")
     axis.grid(True, alpha=0.32, color="#cbd5e1", linewidth=0.7)
     for spine in axis.spines.values():
@@ -140,6 +265,18 @@ def _style_axis(axis: Axes) -> None:
 
 
 def _return_color(return_type: ReturnType) -> str:
+    """Map a trajectory classification to a diagnostic color.
+
+    Parameters
+    ----------
+    return_type:
+        Classification from a simulation result.
+
+    Returns
+    -------
+    str
+        Hex color string used for diagnostic box borders.
+    """
     if return_type == ReturnType.FREE_RETURN:
         return "#4caf50"
     if return_type == ReturnType.LUNAR_IMPACT:
@@ -150,6 +287,18 @@ def _return_color(return_type: ReturnType) -> str:
 
 
 def _phase_bounds(result: SimulationResult) -> tuple[int, int]:
+    """Compute index bounds for the highlighted lunar-flyby phase.
+
+    Parameters
+    ----------
+    result:
+        Simulation result whose apogee defines the center of the flyby window.
+
+    Returns
+    -------
+    tuple[int, int]
+        Inclusive start and end indices covering a window around apogee.
+    """
     count = len(result.history.states)
     margin = max(1, int(0.10 * count))
     start = max(0, result.apogee_index - margin)
@@ -158,7 +307,20 @@ def _phase_bounds(result: SimulationResult) -> tuple[int, int]:
 
 
 def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
-    """Plot the full free-return trajectory with mission phases."""
+    """Plot the full free-return trajectory with mission phases.
+
+    Parameters
+    ----------
+    result:
+        Simulation result to visualize.
+    output_path:
+        PNG path for the generated trajectory figure.
+
+    Returns
+    -------
+    Figure
+        Saved Matplotlib figure.
+    """
     figure, axis = plt.subplots(figsize=(11, 10))
     figure.patch.set_facecolor("white")
     _style_axis(axis)
@@ -181,6 +343,21 @@ def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
     axis.annotate("Moon", (moon_x, moon_y), xytext=(12, 12), textcoords="offset points", color="#475569", fontweight="bold")
 
     def segment(start: int, end: int, color: str, label: str) -> None:
+        """Draw one colored mission-phase segment on the trajectory plot.
+
+        Parameters
+        ----------
+        start, end:
+            Inclusive trajectory sample indices to draw.
+        color:
+            Matplotlib color for the segment.
+        label:
+            Legend label for the segment.
+
+        Returns
+        -------
+        None
+        """
         points = probe[start : end + 1]
         axis.plot(points[:, 0], points[:, 1], color=color, lw=2.2, alpha=0.9, solid_capstyle="round", label=label)
 
@@ -230,7 +407,20 @@ def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
 
 
 def plot_distances(result: SimulationResult, output_path: Path) -> Figure:
-    """Plot Earth and Moon distances through time."""
+    """Plot Earth and Moon distances through time.
+
+    Parameters
+    ----------
+    result:
+        Simulation result to visualize.
+    output_path:
+        PNG path for the generated distance figure.
+
+    Returns
+    -------
+    Figure
+        Saved Matplotlib figure.
+    """
     figure, axes = plt.subplots(2, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios": [1.1, 1]})
     figure.patch.set_facecolor("white")
     for axis in axes:
@@ -242,6 +432,19 @@ def plot_distances(result: SimulationResult, output_path: Path) -> Figure:
     count = len(days)
 
     def plot_phases(axis: Axes, values: np.ndarray) -> None:
+        """Plot one time series split into outbound, flyby, and return phases.
+
+        Parameters
+        ----------
+        axis:
+            Matplotlib axes receiving the phase-colored line segments.
+        values:
+            Time series values aligned with the trajectory sample times.
+
+        Returns
+        -------
+        None
+        """
         for start, end, color in [
             (0, flyby_start, OUTBOUND_COLOR),
             (flyby_start, flyby_end, FLYBY_COLOR),
@@ -273,7 +476,20 @@ def plot_distances(result: SimulationResult, output_path: Path) -> Figure:
 
 
 def plot_energy(result: SimulationResult, output_path: Path) -> Figure:
-    """Plot specific mechanical energy through time."""
+    """Plot specific mechanical energy through time.
+
+    Parameters
+    ----------
+    result:
+        Simulation result to evaluate and visualize.
+    output_path:
+        PNG path for the generated energy figure.
+
+    Returns
+    -------
+    Figure
+        Saved Matplotlib figure.
+    """
     history = result.history
     days = history.times / 86400.0
     probe_position = history.states[:, :2]
@@ -324,7 +540,20 @@ def plot_energy(result: SimulationResult, output_path: Path) -> Figure:
 
 
 def create_figures(result: SimulationResult, output_dir: Path) -> list[Figure]:
-    """Create trajectory, distance, and energy PNG figures."""
+    """Create all static PNG figures for a simulation result.
+
+    Parameters
+    ----------
+    result:
+        Simulation result to visualize.
+    output_dir:
+        Directory where figure files are written.
+
+    Returns
+    -------
+    list[Figure]
+        Figures for trajectory, distance history, and energy history.
+    """
     case = result.case.value
     output_dir.mkdir(parents=True, exist_ok=True)
     return [
@@ -335,7 +564,17 @@ def create_figures(result: SimulationResult, output_dir: Path) -> list[Figure]:
 
 
 def print_summary(result: SimulationResult) -> None:
-    """Print a compact text summary of a simulation result."""
+    """Print a compact text summary of a simulation result.
+
+    Parameters
+    ----------
+    result:
+        Simulation result whose key metrics should be printed.
+
+    Returns
+    -------
+    None
+    """
     flyby_days = result.moon_closest_approach_time / 86400.0
     flyby_altitude_km = (result.min_moon_distance - MOON_RADIUS) / 1e3
     return_days = None

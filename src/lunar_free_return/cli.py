@@ -13,7 +13,13 @@ from lunar_free_return.types import TrajectoryCase
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the command line parser."""
+    """Build the command line parser.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser configured with simulation, plotting, and animation options.
+    """
     parser = argparse.ArgumentParser(description="Simulate Earth-Moon lunar free-return trajectories.")
     parser.add_argument("--case", choices=[case.value for case in TrajectoryCase], default="Ai", help="Schwaniger case to simulate.")
     parser.add_argument("--output", type=Path, default=None, help="Directory for generated figures and GIFs.")
@@ -28,7 +34,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the command line interface."""
+    """Run the command line interface.
+
+    Parameters
+    ----------
+    argv:
+        Optional argument list. When ``None``, arguments are read from
+        ``sys.argv`` by ``argparse``.
+
+    Returns
+    -------
+    int
+        Process exit code. Returns ``0`` after a successful run.
+    """
     args = build_parser().parse_args(argv)
 
     overrides: dict[str, object] = {}

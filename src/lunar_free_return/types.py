@@ -10,7 +10,11 @@ from lunar_free_return.bodies import MassiveBody, SimulationHistory
 
 
 class OrbitalDirection(IntEnum):
-    """Initial orbital direction of the probe around Earth."""
+    """Initial orbital direction of the probe around Earth.
+
+    The sign is used directly when assigning the y component of the injection
+    velocity from the negative x-axis launch point.
+    """
 
     PROGRADE = 1
     """Same angular direction as the Moon, counterclockwise in this model."""
@@ -20,7 +24,7 @@ class OrbitalDirection(IntEnum):
 
 
 class ApproachGeometry(StrEnum):
-    """Lunar flyby geometry."""
+    """Lunar flyby geometry relative to the Earth-Moon line."""
 
     CIRCUMLUNAR = "circumlunar"
     CISLUNAR = "cislunar"
@@ -36,7 +40,7 @@ class TrajectoryCase(StrEnum):
 
 
 class ReturnType(StrEnum):
-    """Qualitative trajectory classification."""
+    """Qualitative trajectory classification returned after simulation."""
 
     FREE_RETURN = "free-return"
     DIRECT_RETURN = "direct-return"
@@ -50,7 +54,31 @@ OUTPUT_BASE = Path("output") / "free_return"
 
 @dataclass(frozen=True)
 class SimulationConfig:
-    """Numerical parameters for one free-return simulation."""
+    """Numerical parameters for one free-return simulation.
+
+    Parameters
+    ----------
+    case:
+        Schwaniger trajectory case identifier.
+    orbital_direction:
+        Initial direction of motion around Earth.
+    departure_altitude:
+        Initial low Earth orbit altitude above Earth's surface in meters.
+    time_step:
+        RK4 integration step in seconds.
+    duration:
+        Maximum propagation duration in seconds.
+    output_dir:
+        Directory used by plotting and animation helpers.
+    moon_phase_adjustment:
+        Extra lunar phase offset in radians applied after the Hohmann transfer
+        phasing estimate.
+    speed_factor:
+        Multiplier applied to the nominal Hohmann injection speed.
+    return_altitude_threshold_km:
+        Altitude above Earth's surface, in kilometers, used to mark a detected
+        Earth return after apogee.
+    """
 
     case: TrajectoryCase = TrajectoryCase.Ai
     orbital_direction: OrbitalDirection = OrbitalDirection.PROGRADE
@@ -109,7 +137,38 @@ PRESETS: dict[TrajectoryCase, SimulationConfig] = {
 
 @dataclass(frozen=True)
 class SimulationResult:
-    """Summary and full state history from a free-return simulation."""
+    """Summary and full state history from a free-return simulation.
+
+    Parameters
+    ----------
+    history:
+        Complete propagated state history.
+    moon:
+        Phased Moon body used during propagation.
+    apogee_index:
+        Index of the maximum probe-Earth distance in ``history``.
+    min_moon_distance:
+        Minimum probe-Moon center distance in meters.
+    max_earth_distance:
+        Maximum probe-Earth center distance in meters.
+    earth_return_distance:
+        Probe-Earth center distance in meters at detected return, or ``None``
+        when no return was detected.
+    moon_closest_approach_time:
+        Time of closest lunar approach in seconds.
+    earth_return_time:
+        Time of detected Earth return in seconds, or ``None``.
+    total_duration:
+        Actual propagated duration in seconds.
+    injection_speed:
+        Initial scalar injection speed in meters per second.
+    return_type:
+        Qualitative classification of the propagated trajectory.
+    diagnostic:
+        Human-readable explanation of the classification.
+    case:
+        Schwaniger case associated with the configuration.
+    """
 
     history: SimulationHistory
     moon: MassiveBody

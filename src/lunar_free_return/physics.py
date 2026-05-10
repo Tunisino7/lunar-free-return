@@ -22,7 +22,23 @@ def acceleration(
     state: StateVector,
     bodies: Sequence[MassiveBody],
 ) -> StateVector:
-    """Return ``[vx, vy, ax, ay]`` for a probe in an N-body gravity field."""
+    """Compute the state derivative in an N-body gravity field.
+
+    Parameters
+    ----------
+    time:
+        Elapsed simulation time in seconds.
+    state:
+        Probe state vector ``[x, y, vx, vy]`` in meters and meters per second.
+    bodies:
+        Massive bodies exerting gravity on the probe.
+
+    Returns
+    -------
+    StateVector
+        Derivative vector ``[vx, vy, ax, ay]`` in meters per second and meters
+        per second squared.
+    """
     x_probe, y_probe, vx, vy = state
     ax = 0.0
     ay = 0.0
@@ -37,7 +53,20 @@ def acceleration(
 
 
 def circular_speed(radius: float, central_mass: float) -> float:
-    """Return circular orbit speed in m/s."""
+    """Compute circular orbit speed around a central body.
+
+    Parameters
+    ----------
+    radius:
+        Orbital radius from the central body center in meters.
+    central_mass:
+        Central body mass in kilograms.
+
+    Returns
+    -------
+    float
+        Circular orbit speed in meters per second.
+    """
     return float(np.sqrt(G * central_mass / radius))
 
 
@@ -46,7 +75,22 @@ def specific_mechanical_energy(
     bodies: Sequence[MassiveBody],
     time: float,
 ) -> float:
-    """Return specific mechanical energy in J/kg."""
+    """Compute the probe's specific mechanical energy.
+
+    Parameters
+    ----------
+    state:
+        Probe state vector ``[x, y, vx, vy]`` in meters and meters per second.
+    bodies:
+        Massive bodies contributing gravitational potential energy.
+    time:
+        Elapsed simulation time in seconds.
+
+    Returns
+    -------
+    float
+        Specific mechanical energy in joules per kilogram.
+    """
     probe_position = state[:2]
     probe_velocity = state[2:]
     kinetic = 0.5 * float(np.dot(probe_velocity, probe_velocity))
@@ -59,14 +103,38 @@ def specific_mechanical_energy(
 
 
 def injection_speed(perigee_radius: float, apogee_radius: float) -> float:
-    """Return Hohmann transfer perigee speed from the vis-viva equation."""
+    """Compute Hohmann transfer speed at perigee.
+
+    Parameters
+    ----------
+    perigee_radius:
+        Transfer ellipse perigee radius from Earth's center in meters.
+    apogee_radius:
+        Transfer ellipse apogee radius from Earth's center in meters.
+
+    Returns
+    -------
+    float
+        Perigee speed in meters per second from the vis-viva equation.
+    """
     mu = G * EARTH.mass
     semi_major_axis = 0.5 * (perigee_radius + apogee_radius)
     return float(np.sqrt(mu * (2.0 / perigee_radius - 1.0 / semi_major_axis)))
 
 
 def phased_moon(initial_phase: float) -> MassiveBody:
-    """Return the Moon body with a selected initial orbital phase."""
+    """Create a Moon body with a selected initial orbital phase.
+
+    Parameters
+    ----------
+    initial_phase:
+        Moon phase angle at ``t = 0`` in radians.
+
+    Returns
+    -------
+    MassiveBody
+        Circular-orbit Moon model using the supplied phase.
+    """
     return MassiveBody(
         MOON_MASS,
         MOON_RADIUS,
@@ -83,7 +151,22 @@ def lunar_closest_approach(
     history: SimulationHistory,
     moon: MassiveBody,
 ) -> tuple[np.ndarray, np.ndarray, int, float, float]:
-    """Return Moon positions, probe-Moon distances, index, distance, and time."""
+    """Find the closest approach between the probe and the Moon.
+
+    Parameters
+    ----------
+    history:
+        Propagated probe state history.
+    moon:
+        Moon body used to compute lunar positions over ``history.times``.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, int, float, float]
+        Moon positions in meters, probe-Moon center distances in meters, the
+        closest-approach index, the closest distance in meters, and the
+        closest-approach time in seconds.
+    """
     probe_positions = history.states[:, :2]
     moon_positions = np.array([moon.position(t) for t in history.times], dtype=float)
     distances = np.linalg.norm(probe_positions - moon_positions, axis=1)
