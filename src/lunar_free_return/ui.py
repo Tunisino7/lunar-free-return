@@ -37,12 +37,15 @@ class PlaybackSettings:
     ----------
     max_frames:
         Maximum number of sampled frames rendered during playback.
-    fps:
-        Target frames per second used for Streamlit frame updates.
+    animation_speed:
+        Playback speed multiplier applied to the base frame rate.
     """
 
     max_frames: int = 120
-    fps: int = 12
+    animation_speed: float = 1.0
+
+
+BASE_PLAYBACK_FPS = 12.0
 
 
 def _streamlit_runtime_active() -> bool:
@@ -84,6 +87,52 @@ def _require_streamlit():
         )
         raise SystemExit(message) from exc
     return st
+
+
+def _apply_compact_layout(st) -> None:
+    """Apply Streamlit CSS that keeps the live plot within the viewport.
+
+    Parameters
+    ----------
+    st:
+        Imported Streamlit module.
+
+    Returns
+    -------
+    None
+    """
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            padding-top: 0.75rem;
+            padding-bottom: 0.5rem;
+        }
+        div[data-testid="stMetric"] {
+            padding: 0.15rem 0;
+        }
+        div[data-testid="stMetric"] label {
+            font-size: 0.78rem;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 1.05rem;
+        }
+        .stTabs [data-baseweb="tab-panel"] {
+            padding-top: 0.35rem;
+        }
+        div[data-testid="stImage"] img {
+            max-height: calc(100vh - 260px);
+            max-width: 100%;
+            width: auto !important;
+            object-fit: contain;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _format_direction(direction: OrbitalDirection) -> str:
@@ -223,20 +272,21 @@ def _sidebar_controls(st) -> tuple[SimulationConfig, PlaybackSettings, bool]:
     st.sidebar.header("Playback")
     playback = PlaybackSettings(
         max_frames=st.sidebar.slider(
-            "Frames",
+            "Animation frames",
             min_value=40,
             max_value=240,
             value=120,
             step=20,
             help="Number of sampled frames rendered during playback.",
         ),
-        fps=st.sidebar.slider(
-            "FPS",
-            min_value=4,
-            max_value=24,
-            value=12,
-            step=1,
-            help="Frame rate used while streaming the trajectory in the app.",
+        animation_speed=st.sidebar.slider(
+            "Animation speed",
+            min_value=0.25,
+            max_value=3.0,
+            value=1.0,
+            step=0.25,
+            format="%.2fx",
+            help="Playback speed multiplier for the live trajectory animation.",
         ),
     )
     run_requested = st.sidebar.button("Run simulation", type="primary")
@@ -410,7 +460,7 @@ def _live_frame_figure(
         Matplotlib figure ready for ``st.pyplot`` rendering.
     """
     start = max(0, frame_index - tail_samples)
-    figure, axis = plt.subplots(figsize=(8, 8))
+    figure, axis = plt.subplots(figsize=(9.6, 5.1), dpi=120)
     figure.patch.set_facecolor("#ffffff")
     axis.set_facecolor("#f8fafc")
     axis.set_aspect("equal", adjustable="box")
@@ -419,7 +469,7 @@ def _live_frame_figure(
     axis.grid(True, alpha=0.18)
     axis.set_xlabel("x (km)")
     axis.set_ylabel("y (km)")
-    axis.set_title(f"Live trajectory playback - day {days[frame_index]:.2f}")
+    axis.set_title(f"Live trajectory playback - day {days[frame_index]:.2f}", pad=6)
 
     theta = np.linspace(0.0, 2.0 * np.pi, 500)
     axis.plot(
@@ -497,7 +547,8 @@ def _live_frame_figure(
             zorder=3,
         )
     )
-    axis.legend(loc="upper right", fontsize=8)
+    axis.legend(loc="upper right", fontsize=7)
+    figure.tight_layout(pad=0.35)
     return figure
 
 
@@ -558,7 +609,7 @@ def _render_figures(st, result) -> None:
             strict=True,
         ):
             with tab:
-                st.pyplot(figure, clear_figure=True)
+                st.pyplot(figure, clear_figure=True, width="stretch")
                 plt.close(figure)
 
 
@@ -602,11 +653,11 @@ def _render_live_animation(
             int(frame_indices[0]),
             limits,
         )
-        placeholder.pyplot(figure, clear_figure=True)
+        placeholder.pyplot(figure, clear_figure=True, width="stretch")
         plt.close(figure)
         return
 
-    delay = 1.0 / float(playback.fps)
+    delay = 1.0 / (BASE_PLAYBACK_FPS * float(playback.animation_speed))
     for position, frame_index in enumerate(frame_indices, start=1):
         figure = _live_frame_figure(
             result,
@@ -616,7 +667,7 @@ def _render_live_animation(
             int(frame_index),
             limits,
         )
-        placeholder.pyplot(figure, clear_figure=True)
+        placeholder.pyplot(figure, clear_figure=True, width="stretch")
         plt.close(figure)
         progress.progress(position / len(frame_indices))
         time.sleep(delay)
@@ -632,6 +683,7 @@ def render_app() -> None:
     st = _require_streamlit()
 
     st.set_page_config(page_title="Lunar Free Return", layout="wide")
+    _apply_compact_layout(st)
     st.title("Lunar Free Return")
     st.caption("Explore Schwaniger Earth-Moon free-return trajectories.")
 
