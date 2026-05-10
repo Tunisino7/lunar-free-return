@@ -7,8 +7,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-
+from lunar_free_return._matplotlib import pyplot as plt
 from lunar_free_return.animation import animate
 from lunar_free_return.constants import MOON_RADIUS
 from lunar_free_return.plotting import create_figures

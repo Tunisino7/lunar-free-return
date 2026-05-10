@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
+from lunar_free_return._matplotlib import pyplot as plt
 from lunar_free_return.constants import EARTH_RADIUS, MOON_RADIUS
 from lunar_free_return.plotting import (
     FLYBY_COLOR,

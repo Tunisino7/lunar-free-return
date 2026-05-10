@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 from matplotlib.ticker import FuncFormatter
 
+from lunar_free_return._matplotlib import pyplot as plt
 from lunar_free_return.bodies import MassiveBody, SimulationHistory
 from lunar_free_return.constants import (
     EARTH_MASS,
