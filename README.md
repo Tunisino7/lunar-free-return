@@ -18,10 +18,12 @@ The default `Ai` preset is an Apollo 13-style circumlunar free return: the probe
 passes behind the Moon, bends around the far side, and returns ballistically to
 Earth without a powered correction in this simplified model.
 
-![Apollo 13-style free-return trajectory](docs/assets/free_return_Ai_trajectory.png)
+![Apollo 13-style free-return animation](docs/assets/free_return_Ai_animation.gif)
 
-The supporting plots show the Earth/Moon distance history and specific
-mechanical energy drift for the same run.
+The supporting plots show the static trajectory, Earth/Moon distance history,
+and specific mechanical energy drift for the same run.
+
+![Apollo 13-style free-return trajectory](docs/assets/free_return_Ai_trajectory.png)
 
 ![Apollo 13-style distance history](docs/assets/free_return_Ai_distances.png)
 
