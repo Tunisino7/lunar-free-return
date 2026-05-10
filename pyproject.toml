@@ -34,9 +34,13 @@ dev = [
     "pytest>=8",
     "ruff>=0.8",
 ]
+ui = [
+    "streamlit>=1.40",
+]
 
 [project.scripts]
 lunar-free-return = "lunar_free_return.cli:main"
+lunar-free-return-ui = "lunar_free_return.ui:main"
 
 [project.urls]
 Homepage = "https://github.com/Tunisino7/lunar-free-return"

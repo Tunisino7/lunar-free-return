@@ -35,6 +35,14 @@ python -m pip install -e ".[accel]"
 The simulator automatically uses the accelerated backend when Numba is
 available and falls back to pure NumPy/Python otherwise.
 
+Install the optional Streamlit interface to experiment with presets and manual
+configuration from a browser:
+
+```bash
+python -m pip install -e ".[ui]"
+lunar-free-return-ui
+```
+
 ## Run
 
 Print the default Apollo 13-style case:
