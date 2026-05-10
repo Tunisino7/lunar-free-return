@@ -20,15 +20,6 @@ Earth without a powered correction in this simplified model.
 
 ![Apollo 13-style free-return animation](docs/assets/free_return_Ai_animation.gif)
 
-The supporting plots show the static trajectory, Earth/Moon distance history,
-and specific mechanical energy drift for the same run.
-
-![Apollo 13-style free-return trajectory](docs/assets/free_return_Ai_trajectory.png)
-
-![Apollo 13-style distance history](docs/assets/free_return_Ai_distances.png)
-
-![Apollo 13-style energy history](docs/assets/free_return_Ai_energy.png)
-
 ## Install
 
 ```bash
