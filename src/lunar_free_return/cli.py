@@ -20,14 +20,48 @@ def build_parser() -> argparse.ArgumentParser:
     argparse.ArgumentParser
         Parser configured with simulation, plotting, and animation options.
     """
-    parser = argparse.ArgumentParser(description="Simulate Earth-Moon lunar free-return trajectories.")
-    parser.add_argument("--case", choices=[case.value for case in TrajectoryCase], default="Ai", help="Schwaniger case to simulate.")
-    parser.add_argument("--output", type=Path, default=None, help="Directory for generated figures and GIFs.")
-    parser.add_argument("--time-step", type=float, default=None, help="Integration time step in seconds.")
-    parser.add_argument("--duration-days", type=float, default=None, help="Maximum simulation duration in days.")
-    parser.add_argument("--speed-factor", type=float, default=None, help="Multiplier applied to the Hohmann injection speed.")
-    parser.add_argument("--moon-phase", type=float, default=None, help="Moon phase adjustment in radians.")
-    parser.add_argument("--figures", action="store_true", help="Generate static PNG figures.")
+    parser = argparse.ArgumentParser(
+        description="Simulate Earth-Moon lunar free-return trajectories."
+    )
+    parser.add_argument(
+        "--case",
+        choices=[case.value for case in TrajectoryCase],
+        default="Ai",
+        help="Schwaniger case to simulate.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Directory for generated figures and GIFs.",
+    )
+    parser.add_argument(
+        "--time-step",
+        type=float,
+        default=None,
+        help="Integration time step in seconds.",
+    )
+    parser.add_argument(
+        "--duration-days",
+        type=float,
+        default=None,
+        help="Maximum simulation duration in days.",
+    )
+    parser.add_argument(
+        "--speed-factor",
+        type=float,
+        default=None,
+        help="Multiplier applied to the Hohmann injection speed.",
+    )
+    parser.add_argument(
+        "--moon-phase",
+        type=float,
+        default=None,
+        help="Moon phase adjustment in radians.",
+    )
+    parser.add_argument(
+        "--figures", action="store_true", help="Generate static PNG figures."
+    )
     parser.add_argument("--gif", action="store_true", help="Generate an animated GIF.")
     parser.add_argument("--fps", type=int, default=30, help="GIF frames per second.")
     return parser

@@ -9,11 +9,11 @@ import numpy as np
 from lunar_free_return.bodies import MassiveBody, SimulationHistory, StateVector
 from lunar_free_return.constants import (
     EARTH,
-    G,
     MOON_ANGULAR_RATE,
     MOON_MASS,
     MOON_ORBIT_RADIUS,
     MOON_RADIUS,
+    G,
 )
 
 

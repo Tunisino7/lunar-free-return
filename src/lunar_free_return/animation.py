@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-from lunar_free_return.constants import MOON_RADIUS, EARTH_RADIUS
+from lunar_free_return.constants import EARTH_RADIUS, MOON_RADIUS
 from lunar_free_return.plotting import (
     FLYBY_COLOR,
     OUTBOUND_COLOR,
@@ -63,7 +63,9 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
     Path
         Path to the generated GIF file.
     """
-    probe, speeds, moon, moon_distance, days, closest_index = trajectory_data(result.history, result.moon)
+    probe, speeds, moon, moon_distance, days, closest_index = trajectory_data(
+        result.history, result.moon
+    )
     count = len(probe)
     apogee_index = result.apogee_index
     margin = max(1, int(0.10 * count))
@@ -78,15 +80,30 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
     _animation_limits(axis, probe, moon)
 
     draw_moon_orbit(axis, color="#94a3b8", linewidth=0.7, label=None)
-    draw_body_with_halos(axis, (0.0, 0.0), EARTH_RADIUS / 1e3, "#4a90d9", halo_count=4, label="Earth")
-    moon_patches = draw_body_with_halos(axis, (0.0, 0.0), MOON_RADIUS / 1e3, "#c8cdd4", halo_count=3, label="Moon")
+    draw_body_with_halos(
+        axis, (0.0, 0.0), EARTH_RADIUS / 1e3, "#4a90d9", halo_count=4, label="Earth"
+    )
+    moon_patches = draw_body_with_halos(
+        axis, (0.0, 0.0), MOON_RADIUS / 1e3, "#c8cdd4", halo_count=3, label="Moon"
+    )
 
-    outbound_line, = axis.plot([], [], color=OUTBOUND_COLOR, lw=2.0, alpha=0.8)
-    flyby_line, = axis.plot([], [], color=FLYBY_COLOR, lw=2.5, alpha=0.9)
-    return_line, = axis.plot([], [], color=RETURN_COLOR, lw=2.0, alpha=0.8)
-    moon_line, = axis.plot([], [], color="#5c6bc0", lw=0.8, alpha=0.3)
-    probe_dot = axis.scatter([], [], s=45, color="white", edgecolors="gray", linewidths=0.8, zorder=6)
-    closest_marker = axis.scatter([], [], s=70, marker="D", color=FLYBY_COLOR, edgecolors="#1f2937", linewidths=0.8, zorder=7)
+    (outbound_line,) = axis.plot([], [], color=OUTBOUND_COLOR, lw=2.0, alpha=0.8)
+    (flyby_line,) = axis.plot([], [], color=FLYBY_COLOR, lw=2.5, alpha=0.9)
+    (return_line,) = axis.plot([], [], color=RETURN_COLOR, lw=2.0, alpha=0.8)
+    (moon_line,) = axis.plot([], [], color="#5c6bc0", lw=0.8, alpha=0.3)
+    probe_dot = axis.scatter(
+        [], [], s=45, color="white", edgecolors="gray", linewidths=0.8, zorder=6
+    )
+    closest_marker = axis.scatter(
+        [],
+        [],
+        s=70,
+        marker="D",
+        color=FLYBY_COLOR,
+        edgecolors="#1f2937",
+        linewidths=0.8,
+        zorder=7,
+    )
     hud = axis.text(
         0.02,
         0.97,
@@ -96,13 +113,30 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
         fontsize=10,
         fontfamily="monospace",
         va="top",
-        bbox={"boxstyle": "round,pad=0.35", "facecolor": "#1f2937", "edgecolor": "#1f2937", "alpha": 0.92},
+        bbox={
+            "boxstyle": "round,pad=0.35",
+            "facecolor": "#1f2937",
+            "edgecolor": "#1f2937",
+            "alpha": 0.92,
+        },
     )
 
-    for label, color in [("Outbound", OUTBOUND_COLOR), ("Flyby", FLYBY_COLOR), ("Return", RETURN_COLOR)]:
+    for label, color in [
+        ("Outbound", OUTBOUND_COLOR),
+        ("Flyby", FLYBY_COLOR),
+        ("Return", RETURN_COLOR),
+    ]:
         axis.plot([], [], color=color, lw=2.5, label=label)
-    configure_space_axis(axis, f"Lunar free return - case {result.case}", title_fontsize=14)
-    axis.legend(loc="lower right", fontsize=9, framealpha=0.95, facecolor="#ffffff", edgecolor="#cbd5e1")
+    configure_space_axis(
+        axis, f"Lunar free return - case {result.case}", title_fontsize=14
+    )
+    axis.legend(
+        loc="lower right",
+        fontsize=9,
+        framealpha=0.95,
+        facecolor="#ffffff",
+        edgecolor="#cbd5e1",
+    )
 
     def phase_label(index: int) -> str:
         """Return the display label for a trajectory sample.
@@ -159,7 +193,16 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
         for patch in moon_patches:
             patch.set_center((0.0, 0.0))
         hud.set_text("")
-        return (outbound_line, flyby_line, return_line, moon_line, probe_dot, *moon_patches, hud, closest_marker)
+        return (
+            outbound_line,
+            flyby_line,
+            return_line,
+            moon_line,
+            probe_dot,
+            *moon_patches,
+            hud,
+            closest_marker,
+        )
 
     def update(frame_index: int):
         """Update animated artists for one sampled trajectory frame.
@@ -197,7 +240,9 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
         moon_line.set_data(moon[: index + 1, 0], moon[: index + 1, 1])
 
         if index >= closest_index:
-            closest_marker.set_offsets([[probe[closest_index, 0], probe[closest_index, 1]]])
+            closest_marker.set_offsets(
+                [[probe[closest_index, 0], probe[closest_index, 1]]]
+            )
 
         hud.set_text(
             f"Phase: {phase_label(index)}\n"
@@ -205,7 +250,16 @@ def animate(result: SimulationResult, output_dir: Path, *, fps: int = 30) -> Pat
             f"v = {speeds[index]:.2f} km/s\n"
             f"d_Moon = {moon_distance[index]:,.0f} km"
         )
-        return (outbound_line, flyby_line, return_line, moon_line, probe_dot, *moon_patches, hud, closest_marker)
+        return (
+            outbound_line,
+            flyby_line,
+            return_line,
+            moon_line,
+            probe_dot,
+            *moon_patches,
+            hud,
+            closest_marker,
+        )
 
     animation = FuncAnimation(
         figure,

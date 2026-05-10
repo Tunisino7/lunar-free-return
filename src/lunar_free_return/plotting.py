@@ -13,12 +13,12 @@ from matplotlib.ticker import FuncFormatter
 
 from lunar_free_return.bodies import MassiveBody, SimulationHistory
 from lunar_free_return.constants import (
-    G,
+    EARTH_MASS,
+    EARTH_RADIUS,
     MOON_MASS,
     MOON_ORBIT_RADIUS,
     MOON_RADIUS,
-    EARTH_MASS,
-    EARTH_RADIUS,
+    G,
 )
 from lunar_free_return.types import ReturnType, SimulationResult
 
@@ -325,7 +325,9 @@ def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
     figure.patch.set_facecolor("white")
     _style_axis(axis)
 
-    probe, _, moon, _, days, closest_index = trajectory_data(result.history, result.moon)
+    probe, _, moon, _, days, closest_index = trajectory_data(
+        result.history, result.moon
+    )
     count = len(probe)
     flyby_start, flyby_end = _phase_bounds(result)
 
@@ -333,14 +335,39 @@ def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
     moon_radius_km = MOON_RADIUS / 1e3
 
     draw_moon_orbit(axis, color="#94a3b8", linewidth=0.8, label="Moon orbit")
-    axis.plot(moon[:, 0], moon[:, 1], color="#94a3b8", lw=0.9, alpha=0.5, label="Moon path")
+    axis.plot(
+        moon[:, 0], moon[:, 1], color="#94a3b8", lw=0.9, alpha=0.5, label="Moon path"
+    )
 
-    draw_body_with_halos(axis, (0.0, 0.0), earth_radius_km, "#4a90d9", halo_count=4, label="Earth")
-    axis.annotate("Earth", (0.0, 0.0), xytext=(12, 12), textcoords="offset points", color="#4a90d9", fontweight="bold")
+    draw_body_with_halos(
+        axis, (0.0, 0.0), earth_radius_km, "#4a90d9", halo_count=4, label="Earth"
+    )
+    axis.annotate(
+        "Earth",
+        (0.0, 0.0),
+        xytext=(12, 12),
+        textcoords="offset points",
+        color="#4a90d9",
+        fontweight="bold",
+    )
 
     moon_x, moon_y = moon[closest_index]
-    draw_body_with_halos(axis, (moon_x, moon_y), moon_radius_km, "#c8cdd4", halo_count=3, label="Moon at flyby")
-    axis.annotate("Moon", (moon_x, moon_y), xytext=(12, 12), textcoords="offset points", color="#475569", fontweight="bold")
+    draw_body_with_halos(
+        axis,
+        (moon_x, moon_y),
+        moon_radius_km,
+        "#c8cdd4",
+        halo_count=3,
+        label="Moon at flyby",
+    )
+    axis.annotate(
+        "Moon",
+        (moon_x, moon_y),
+        xytext=(12, 12),
+        textcoords="offset points",
+        color="#475569",
+        fontweight="bold",
+    )
 
     def segment(start: int, end: int, color: str, label: str) -> None:
         """Draw one colored mission-phase segment on the trajectory plot.
@@ -359,19 +386,56 @@ def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
         None
         """
         points = probe[start : end + 1]
-        axis.plot(points[:, 0], points[:, 1], color=color, lw=2.2, alpha=0.9, solid_capstyle="round", label=label)
+        axis.plot(
+            points[:, 0],
+            points[:, 1],
+            color=color,
+            lw=2.2,
+            alpha=0.9,
+            solid_capstyle="round",
+            label=label,
+        )
 
     segment(0, flyby_start, OUTBOUND_COLOR, "Outbound")
     segment(flyby_start, flyby_end, FLYBY_COLOR, "Lunar flyby")
     if flyby_end < count - 1:
         segment(flyby_end, count - 1, RETURN_COLOR, "Return")
 
-    axis.plot(probe[0, 0], probe[0, 1], "o", color="white", mec="#4a90d9", mew=1.5, ms=9, label="LEO departure")
-    axis.plot(probe[result.apogee_index, 0], probe[result.apogee_index, 1], "D", color=FLYBY_COLOR, mec="#1f2937", mew=0.8, ms=9, label="Apogee / flyby")
+    axis.plot(
+        probe[0, 0],
+        probe[0, 1],
+        "o",
+        color="white",
+        mec="#4a90d9",
+        mew=1.5,
+        ms=9,
+        label="LEO departure",
+    )
+    axis.plot(
+        probe[result.apogee_index, 0],
+        probe[result.apogee_index, 1],
+        "D",
+        color=FLYBY_COLOR,
+        mec="#1f2937",
+        mew=0.8,
+        ms=9,
+        label="Apogee / flyby",
+    )
 
     if result.earth_return_time is not None:
-        return_index = int(np.argmin(np.abs(result.history.times - result.earth_return_time)))
-        axis.plot(probe[return_index, 0], probe[return_index, 1], "v", color=RETURN_COLOR, mec="black", mew=0.5, ms=11, label="Earth return")
+        return_index = int(
+            np.argmin(np.abs(result.history.times - result.earth_return_time))
+        )
+        axis.plot(
+            probe[return_index, 0],
+            probe[return_index, 1],
+            "v",
+            color=RETURN_COLOR,
+            mec="black",
+            mew=0.5,
+            ms=11,
+            label="Earth return",
+        )
 
     altitude_km = (result.min_moon_distance - MOON_RADIUS) / 1e3
     outbound_days = result.moon_closest_approach_time / 86400.0
@@ -398,11 +462,25 @@ def plot_trajectory(result: SimulationResult, output_path: Path) -> Figure:
         ha="left",
         fontsize=9,
         fontfamily="monospace",
-        bbox={"boxstyle": "round,pad=0.4", "facecolor": "white", "alpha": 0.9, "edgecolor": _return_color(result.return_type), "linewidth": 1.5},
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "facecolor": "white",
+            "alpha": 0.9,
+            "edgecolor": _return_color(result.return_type),
+            "linewidth": 1.5,
+        },
     )
 
-    configure_space_axis(axis, f"Lunar free-return trajectory - case {result.case}", title_fontsize=13)
-    axis.legend(loc="lower right", fontsize=8, framealpha=0.95, facecolor="white", edgecolor="#cbd5e1")
+    configure_space_axis(
+        axis, f"Lunar free-return trajectory - case {result.case}", title_fontsize=13
+    )
+    axis.legend(
+        loc="lower right",
+        fontsize=8,
+        framealpha=0.95,
+        facecolor="white",
+        edgecolor="#cbd5e1",
+    )
     return save_figure(figure, output_path)
 
 
@@ -421,12 +499,16 @@ def plot_distances(result: SimulationResult, output_path: Path) -> Figure:
     Figure
         Saved Matplotlib figure.
     """
-    figure, axes = plt.subplots(2, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios": [1.1, 1]})
+    figure, axes = plt.subplots(
+        2, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios": [1.1, 1]}
+    )
     figure.patch.set_facecolor("white")
     for axis in axes:
         _style_axis(axis)
 
-    probe, _, _, moon_distances_km, days, closest_index = trajectory_data(result.history, result.moon)
+    probe, _, _, moon_distances_km, days, closest_index = trajectory_data(
+        result.history, result.moon
+    )
     earth_distances_km = np.linalg.norm(probe, axis=1)
     flyby_start, flyby_end = _phase_bounds(result)
     count = len(days)
@@ -451,22 +533,68 @@ def plot_distances(result: SimulationResult, output_path: Path) -> Figure:
             (flyby_end, count - 1, RETURN_COLOR),
         ]:
             if end > start:
-                axis.plot(days[start : end + 1], values[start : end + 1], color=color, lw=2.0)
+                axis.plot(
+                    days[start : end + 1], values[start : end + 1], color=color, lw=2.0
+                )
 
-    axes[0].axhline(MOON_ORBIT_RADIUS / 1e3, color="#64748b", ls="--", lw=1.0, alpha=0.7, label=f"Moon orbit ({MOON_ORBIT_RADIUS / 1e3:,.0f} km)")
-    axes[0].axhline(EARTH_RADIUS / 1e3, color="#4a90d9", ls=":", lw=0.8, alpha=0.6, label=f"Earth surface ({EARTH_RADIUS / 1e3:,.0f} km)")
+    axes[0].axhline(
+        MOON_ORBIT_RADIUS / 1e3,
+        color="#64748b",
+        ls="--",
+        lw=1.0,
+        alpha=0.7,
+        label=f"Moon orbit ({MOON_ORBIT_RADIUS / 1e3:,.0f} km)",
+    )
+    axes[0].axhline(
+        EARTH_RADIUS / 1e3,
+        color="#4a90d9",
+        ls=":",
+        lw=0.8,
+        alpha=0.6,
+        label=f"Earth surface ({EARTH_RADIUS / 1e3:,.0f} km)",
+    )
     plot_phases(axes[0], earth_distances_km)
-    axes[0].axvline(days[result.apogee_index], color=FLYBY_COLOR, ls=":", lw=1.2, label=f"Apogee t = {days[result.apogee_index]:.2f} days")
+    axes[0].axvline(
+        days[result.apogee_index],
+        color=FLYBY_COLOR,
+        ls=":",
+        lw=1.2,
+        label=f"Apogee t = {days[result.apogee_index]:.2f} days",
+    )
     axes[0].set_ylabel("Distance to Earth (km)")
-    axes[0].set_title(f"Distances through time - case {result.case}", fontsize=12, fontweight="bold")
+    axes[0].set_title(
+        f"Distances through time - case {result.case}", fontsize=12, fontweight="bold"
+    )
     axes[0].legend(loc="upper right", fontsize=8)
     axes[0].set_ylim(bottom=0)
 
     axes[1].set_yscale("log")
     plot_phases(axes[1], moon_distances_km)
-    axes[1].axhline(MOON_RADIUS / 1e3, color="#c8cdd4", ls=":", lw=0.8, alpha=0.7, label=f"Moon surface ({MOON_RADIUS / 1e3:,.0f} km)")
-    axes[1].axvline(days[closest_index], color=FLYBY_COLOR, ls=":", lw=1.2, label=f"Closest flyby t = {days[closest_index]:.2f} days")
-    axes[1].plot(days[closest_index], moon_distances_km[closest_index], "D", color=FLYBY_COLOR, ms=8, mec="#1f2937", mew=0.8, label=f"d_min = {moon_distances_km[closest_index]:,.0f} km")
+    axes[1].axhline(
+        MOON_RADIUS / 1e3,
+        color="#c8cdd4",
+        ls=":",
+        lw=0.8,
+        alpha=0.7,
+        label=f"Moon surface ({MOON_RADIUS / 1e3:,.0f} km)",
+    )
+    axes[1].axvline(
+        days[closest_index],
+        color=FLYBY_COLOR,
+        ls=":",
+        lw=1.2,
+        label=f"Closest flyby t = {days[closest_index]:.2f} days",
+    )
+    axes[1].plot(
+        days[closest_index],
+        moon_distances_km[closest_index],
+        "D",
+        color=FLYBY_COLOR,
+        ms=8,
+        mec="#1f2937",
+        mew=0.8,
+        label=f"d_min = {moon_distances_km[closest_index]:,.0f} km",
+    )
     axes[1].set_xlabel("Time (days)")
     axes[1].set_ylabel("Distance to Moon (km)")
     axes[1].legend(loc="upper right", fontsize=8)
@@ -505,7 +633,13 @@ def plot_energy(result: SimulationResult, output_path: Path) -> Figure:
     baseline = total[0]
     relative_drift = (total - baseline) / abs(baseline)
 
-    figure, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True, gridspec_kw={"height_ratios": [3, 1], "hspace": 0.08})
+    figure, axes = plt.subplots(
+        2,
+        1,
+        figsize=(12, 8),
+        sharex=True,
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.08},
+    )
     figure.patch.set_facecolor("white")
     for axis in axes:
         _style_axis(axis)
@@ -515,9 +649,15 @@ def plot_energy(result: SimulationResult, output_path: Path) -> Figure:
     axes[0].plot(days, total / 1e6, color="#2e7d32", lw=2.0, label="Total")
     axes[0].axhline(baseline / 1e6, color="#2e7d32", ls="--", lw=0.8, alpha=0.5)
     flyby_time = result.moon_closest_approach_time / 86400.0
-    axes[0].axvline(flyby_time, color=FLYBY_COLOR, ls=":", lw=1.0, alpha=0.7, label="Lunar flyby")
+    axes[0].axvline(
+        flyby_time, color=FLYBY_COLOR, ls=":", lw=1.0, alpha=0.7, label="Lunar flyby"
+    )
     axes[0].set_ylabel("Specific energy (MJ/kg)")
-    axes[0].set_title(f"Specific mechanical energy - case {result.case}", fontsize=13, fontweight="bold")
+    axes[0].set_title(
+        f"Specific mechanical energy - case {result.case}",
+        fontsize=13,
+        fontweight="bold",
+    )
     axes[0].legend(loc="right", fontsize=9, framealpha=0.95, edgecolor="#cbd5e1")
 
     axes[1].plot(days, relative_drift * 100, color="#2e7d32", lw=1.2)

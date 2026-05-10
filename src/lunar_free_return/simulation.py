@@ -10,15 +10,18 @@ from lunar_free_return.bodies import MassiveBody, StateVector
 from lunar_free_return.constants import (
     EARTH,
     EARTH_RADIUS,
-    G,
     MOON_ANGULAR_RATE,
     MOON_ORBIT_RADIUS,
     MOON_RADIUS,
+    G,
 )
-from lunar_free_return.physics import injection_speed, lunar_closest_approach, phased_moon
+from lunar_free_return.physics import (
+    injection_speed,
+    lunar_closest_approach,
+    phased_moon,
+)
 from lunar_free_return.propagation import propagate_trajectory
 from lunar_free_return.types import (
-    OrbitalDirection,
     PRESETS,
     ReturnType,
     SimulationConfig,

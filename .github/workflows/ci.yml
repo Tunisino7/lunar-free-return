@@ -38,6 +38,12 @@ jobs:
       - name: Compile source
         run: python -m compileall -q src tests
 
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Lint
+        run: ruff check .
+
       - name: Run tests
         run: python -m pytest
 
