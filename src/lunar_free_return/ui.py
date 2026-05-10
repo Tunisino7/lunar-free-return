@@ -5,14 +5,21 @@ from __future__ import annotations
 import sys
 import tempfile
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
 
 from lunar_free_return._matplotlib import pyplot as plt
 from lunar_free_return.constants import EARTH_RADIUS, MOON_ORBIT_RADIUS, MOON_RADIUS
-from lunar_free_return.plotting import create_figures, sampled_indices, trajectory_data
+from lunar_free_return.plotting import (
+    FLYBY_COLOR,
+    OUTBOUND_COLOR,
+    RETURN_COLOR,
+    create_figures,
+    sampled_indices,
+    trajectory_data,
+)
 from lunar_free_return.simulation import simulate, with_case
 from lunar_free_return.types import (
     OrbitalDirection,
@@ -20,6 +27,22 @@ from lunar_free_return.types import (
     SimulationResult,
     TrajectoryCase,
 )
+
+
+@dataclass(frozen=True)
+class PlaybackSettings:
+    """Controls for in-page trajectory playback.
+
+    Parameters
+    ----------
+    max_frames:
+        Maximum number of sampled frames rendered during playback.
+    fps:
+        Target frames per second used for Streamlit frame updates.
+    """
+
+    max_frames: int = 120
+    fps: int = 12
 
 
 def _streamlit_runtime_active() -> bool:
@@ -99,8 +122,8 @@ def _direction_from_label(label: str) -> OrbitalDirection:
     return OrbitalDirection.RETROGRADE
 
 
-def _sidebar_config(st) -> SimulationConfig:
-    """Build a simulation configuration from sidebar controls.
+def _sidebar_controls(st) -> tuple[SimulationConfig, PlaybackSettings, bool]:
+    """Build simulation, playback, and action state from sidebar controls.
 
     Parameters
     ----------
@@ -109,9 +132,9 @@ def _sidebar_config(st) -> SimulationConfig:
 
     Returns
     -------
-    SimulationConfig
-        Selected preset configuration or a manually adjusted configuration
-        seeded from one preset.
+    tuple[SimulationConfig, PlaybackSettings, bool]
+        Selected simulation configuration, playback settings, and whether the
+        user requested a new simulation run.
     """
     st.sidebar.header("Configuration")
 
@@ -130,72 +153,94 @@ def _sidebar_config(st) -> SimulationConfig:
     )
     preset = with_case(case)
 
-    if mode == "Preset":
+    config = preset
+    if mode == "Manual":
+        st.sidebar.subheader("Manual parameters")
+
+        speed_factor = st.sidebar.slider(
+            "Speed factor",
+            min_value=0.99000,
+            max_value=1.03000,
+            value=float(preset.speed_factor),
+            step=0.00005,
+            format="%.5f",
+            help="Multiplier applied to the Hohmann injection speed.",
+        )
+        moon_phase = st.sidebar.slider(
+            "Moon phase adjustment (rad)",
+            min_value=-3.20,
+            max_value=3.20,
+            value=float(preset.moon_phase_adjustment),
+            step=0.0002,
+            format="%.4f",
+            help="Additional lunar phase offset at t = 0.",
+        )
+        duration_days = st.sidebar.slider(
+            "Duration (days)",
+            min_value=4.0,
+            max_value=25.0,
+            value=float(preset.duration / 86400.0),
+            step=0.5,
+            help="Maximum propagation duration.",
+        )
+        time_step = st.sidebar.select_slider(
+            "Time step (s)",
+            options=[30.0, 60.0, 90.0, 120.0, 180.0, 240.0, 300.0],
+            value=float(preset.time_step),
+            help="RK4 integration step. Smaller values improve accuracy.",
+        )
+
+        direction_labels = ["Prograde", "Retrograde"]
+        direction = st.sidebar.selectbox(
+            "Orbital direction",
+            direction_labels,
+            index=direction_labels.index(_format_direction(preset.orbital_direction)),
+            help="Initial direction around Earth from the injection point.",
+        )
+        return_threshold = st.sidebar.number_input(
+            "Return threshold altitude (km)",
+            min_value=1_000.0,
+            max_value=50_000.0,
+            value=float(preset.return_altitude_threshold_km),
+            step=500.0,
+            help="Altitude above Earth used to detect the return leg after apogee.",
+        )
+
+        config = replace(
+            preset,
+            speed_factor=float(speed_factor),
+            moon_phase_adjustment=float(moon_phase),
+            duration=float(duration_days) * 86400.0,
+            time_step=float(time_step),
+            orbital_direction=_direction_from_label(direction),
+            return_altitude_threshold_km=float(return_threshold),
+        )
+    else:
         st.sidebar.caption(
             "Preset mode uses the published case parameters without overrides."
         )
-        return preset
 
-    st.sidebar.subheader("Manual parameters")
-
-    speed_factor = st.sidebar.slider(
-        "Speed factor",
-        min_value=0.99000,
-        max_value=1.03000,
-        value=float(preset.speed_factor),
-        step=0.00005,
-        format="%.5f",
-        help="Multiplier applied to the Hohmann injection speed.",
+    st.sidebar.header("Playback")
+    playback = PlaybackSettings(
+        max_frames=st.sidebar.slider(
+            "Frames",
+            min_value=40,
+            max_value=240,
+            value=120,
+            step=20,
+            help="Number of sampled frames rendered during playback.",
+        ),
+        fps=st.sidebar.slider(
+            "FPS",
+            min_value=4,
+            max_value=24,
+            value=12,
+            step=1,
+            help="Frame rate used while streaming the trajectory in the app.",
+        ),
     )
-    moon_phase = st.sidebar.slider(
-        "Moon phase adjustment (rad)",
-        min_value=-3.20,
-        max_value=3.20,
-        value=float(preset.moon_phase_adjustment),
-        step=0.0002,
-        format="%.4f",
-        help="Additional lunar phase offset at t = 0.",
-    )
-    duration_days = st.sidebar.slider(
-        "Duration (days)",
-        min_value=4.0,
-        max_value=25.0,
-        value=float(preset.duration / 86400.0),
-        step=0.5,
-        help="Maximum propagation duration.",
-    )
-    time_step = st.sidebar.select_slider(
-        "Time step (s)",
-        options=[30.0, 60.0, 90.0, 120.0, 180.0, 240.0, 300.0],
-        value=float(preset.time_step),
-        help="RK4 integration step. Smaller values improve accuracy.",
-    )
-
-    direction_labels = ["Prograde", "Retrograde"]
-    direction = st.sidebar.selectbox(
-        "Orbital direction",
-        direction_labels,
-        index=direction_labels.index(_format_direction(preset.orbital_direction)),
-        help="Initial direction around Earth from the injection point.",
-    )
-    return_threshold = st.sidebar.number_input(
-        "Return threshold altitude (km)",
-        min_value=1_000.0,
-        max_value=50_000.0,
-        value=float(preset.return_altitude_threshold_km),
-        step=500.0,
-        help="Altitude above Earth used to detect the return leg after apogee.",
-    )
-
-    return replace(
-        preset,
-        speed_factor=float(speed_factor),
-        moon_phase_adjustment=float(moon_phase),
-        duration=float(duration_days) * 86400.0,
-        time_step=float(time_step),
-        orbital_direction=_direction_from_label(direction),
-        return_altitude_threshold_km=float(return_threshold),
-    )
+    run_requested = st.sidebar.button("Run simulation", type="primary")
+    return config, playback, run_requested
 
 
 def _animation_limits(
@@ -229,7 +274,109 @@ def _animation_limits(
     )
 
 
+def _phase_bounds(result: SimulationResult) -> tuple[int, int]:
+    """Return the approximate lunar-flyby phase bounds.
+
+    Parameters
+    ----------
+    result:
+        Simulation result whose apogee index anchors the flyby window.
+
+    Returns
+    -------
+    tuple[int, int]
+        Inclusive start and end indices for the highlighted flyby phase.
+    """
+    count = len(result.history.states)
+    margin = max(1, int(0.10 * count))
+    flyby_start = max(0, result.apogee_index - margin)
+    flyby_end = min(count - 1, result.apogee_index + margin)
+    return (
+        flyby_start,
+        flyby_end,
+    )
+
+
+def _phase_color(result: SimulationResult, frame_index: int) -> str:
+    """Return the trajectory color matching the current mission phase.
+
+    Parameters
+    ----------
+    result:
+        Simulation result used to locate phase boundaries.
+    frame_index:
+        Current sample index.
+
+    Returns
+    -------
+    str
+        Matplotlib color for outbound, flyby, or return phase.
+    """
+    flyby_start, flyby_end = _phase_bounds(result)
+    if frame_index < flyby_start:
+        return OUTBOUND_COLOR
+    if frame_index <= flyby_end:
+        return FLYBY_COLOR
+    return RETURN_COLOR
+
+
+def _plot_phase_segments(
+    axis,
+    probe_km: np.ndarray,
+    result: SimulationResult,
+    *,
+    end_index: int | None = None,
+    alpha: float,
+    linewidth: float,
+) -> None:
+    """Draw trajectory segments with the same colors as analysis plots.
+
+    Parameters
+    ----------
+    axis:
+        Matplotlib axes receiving the trajectory lines.
+    probe_km:
+        Probe positions in kilometers with shape ``(N, 2)``.
+    result:
+        Simulation result used to split the path by mission phase.
+    end_index:
+        Optional last sample index to draw. ``None`` draws the full path.
+    alpha:
+        Line opacity.
+    linewidth:
+        Line width in points.
+
+    Returns
+    -------
+    None
+    """
+    count = len(probe_km)
+    limit = count - 1 if end_index is None else min(end_index, count - 1)
+    flyby_start, flyby_end = _phase_bounds(result)
+    segments = (
+        (0, flyby_start, OUTBOUND_COLOR, "Outbound"),
+        (flyby_start, flyby_end, FLYBY_COLOR, "Lunar flyby"),
+        (flyby_end, count - 1, RETURN_COLOR, "Return"),
+    )
+
+    for start, end, color, label in segments:
+        segment_end = min(end, limit)
+        if segment_end < start:
+            continue
+        points = probe_km[start : segment_end + 1]
+        axis.plot(
+            points[:, 0],
+            points[:, 1],
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            solid_capstyle="round",
+            label=label if end_index is None else None,
+        )
+
+
 def _live_frame_figure(
+    result: SimulationResult,
     probe_km: np.ndarray,
     moon_km: np.ndarray,
     days: np.ndarray,
@@ -242,6 +389,8 @@ def _live_frame_figure(
 
     Parameters
     ----------
+    result:
+        Simulation result used to color trajectory phases.
     probe_km:
         Probe positions in kilometers with shape ``(N, 2)``.
     moon_km:
@@ -282,34 +431,51 @@ def _live_frame_figure(
         label="Moon orbit",
     )
     axis.plot(
-        probe_km[:, 0],
-        probe_km[:, 1],
+        moon_km[:, 0],
+        moon_km[:, 1],
         color="#94a3b8",
         linewidth=0.9,
-        alpha=0.35,
-        label="Full trajectory",
+        alpha=0.5,
+        label="Moon path",
     )
-    axis.plot(
-        probe_km[start : frame_index + 1, 0],
-        probe_km[start : frame_index + 1, 1],
-        color="#0284c7",
-        linewidth=2.2,
-        label="Current path",
+
+    _plot_phase_segments(axis, probe_km, result, alpha=0.22, linewidth=1.0)
+    _plot_phase_segments(
+        axis,
+        probe_km,
+        result,
+        end_index=frame_index,
+        alpha=0.95,
+        linewidth=2.3,
     )
-    axis.scatter(0.0, 0.0, s=90, color="#2563eb", label="Earth", zorder=4)
+    if start > 0:
+        axis.plot(
+            probe_km[start : frame_index + 1, 0],
+            probe_km[start : frame_index + 1, 1],
+            color=_phase_color(result, frame_index),
+            linewidth=3.0,
+            alpha=0.95,
+            solid_capstyle="round",
+        )
+
+    axis.scatter(0.0, 0.0, s=90, color="#4a90d9", label="Earth", zorder=4)
     axis.scatter(
         moon_km[frame_index, 0],
         moon_km[frame_index, 1],
         s=60,
-        color="#64748b",
+        color="#c8cdd4",
+        edgecolors="#475569",
+        linewidths=0.8,
         label="Moon",
         zorder=4,
     )
     axis.scatter(
         probe_km[frame_index, 0],
         probe_km[frame_index, 1],
-        s=42,
-        color="#dc2626",
+        s=48,
+        color=_phase_color(result, frame_index),
+        edgecolors="#1f2937",
+        linewidths=0.8,
         label="Spacecraft",
         zorder=5,
     )
@@ -317,7 +483,7 @@ def _live_frame_figure(
         plt.Circle(
             (0.0, 0.0),
             EARTH_RADIUS / 1e3,
-            color="#2563eb",
+            color="#4a90d9",
             alpha=0.18,
             zorder=3,
         )
@@ -326,7 +492,7 @@ def _live_frame_figure(
         plt.Circle(
             tuple(moon_km[frame_index]),
             MOON_RADIUS / 1e3,
-            color="#64748b",
+            color="#c8cdd4",
             alpha=0.18,
             zorder=3,
         )
@@ -396,7 +562,13 @@ def _render_figures(st, result) -> None:
                 plt.close(figure)
 
 
-def _render_live_animation(st, result: SimulationResult) -> None:
+def _render_live_animation(
+    st,
+    result: SimulationResult,
+    playback: PlaybackSettings,
+    *,
+    play: bool,
+) -> None:
     """Render an in-page trajectory playback without writing media files.
 
     Parameters
@@ -405,44 +577,45 @@ def _render_live_animation(st, result: SimulationResult) -> None:
         Imported Streamlit module.
     result:
         Simulation result returned by ``simulate``.
+    playback:
+        Controls for the number of frames and playback speed.
+    play:
+        Whether to stream all sampled frames or show the first frame only.
 
     Returns
     -------
     None
     """
     probe, _, moon, _, days, _ = trajectory_data(result.history, result.moon)
-    max_frames = st.slider(
-        "Playback frames",
-        min_value=40,
-        max_value=240,
-        value=120,
-        step=20,
-        help="Number of rendered frames sampled from the trajectory.",
-    )
-    fps = st.slider(
-        "Playback speed (FPS)",
-        min_value=4,
-        max_value=24,
-        value=12,
-        step=1,
-        help="Frame rate used while streaming the trajectory in the app.",
-    )
-    frame_indices = sampled_indices(len(probe), max_frames=max_frames)
+    frame_indices = sampled_indices(len(probe), max_frames=playback.max_frames)
     limits = _animation_limits(probe, moon)
 
     placeholder = st.empty()
     progress = st.progress(0.0)
-    play = st.button("Play trajectory", type="primary")
 
     if not play:
-        figure = _live_frame_figure(probe, moon, days, int(frame_indices[0]), limits)
+        figure = _live_frame_figure(
+            result,
+            probe,
+            moon,
+            days,
+            int(frame_indices[0]),
+            limits,
+        )
         placeholder.pyplot(figure, clear_figure=True)
         plt.close(figure)
         return
 
-    delay = 1.0 / float(fps)
+    delay = 1.0 / float(playback.fps)
     for position, frame_index in enumerate(frame_indices, start=1):
-        figure = _live_frame_figure(probe, moon, days, int(frame_index), limits)
+        figure = _live_frame_figure(
+            result,
+            probe,
+            moon,
+            days,
+            int(frame_index),
+            limits,
+        )
         placeholder.pyplot(figure, clear_figure=True)
         plt.close(figure)
         progress.progress(position / len(frame_indices))
@@ -462,21 +635,20 @@ def render_app() -> None:
     st.title("Lunar Free Return")
     st.caption("Explore Schwaniger Earth-Moon free-return trajectories.")
 
-    config = _sidebar_config(st)
+    config, playback, run_requested = _sidebar_controls(st)
 
-    if (
-        st.sidebar.button("Run simulation", type="primary")
-        or "result" not in st.session_state
-    ):
+    if run_requested or "result" not in st.session_state:
         with st.spinner("Propagating trajectory..."):
             st.session_state.result = simulate(config)
+        st.session_state.playback_requested = run_requested
 
     result = st.session_state.result
     _summary_metrics(st, result)
     animation_tab, analysis_tab = st.tabs(["Live animation", "Analysis plots"])
 
     with animation_tab:
-        _render_live_animation(st, result)
+        play = bool(st.session_state.pop("playback_requested", False))
+        _render_live_animation(st, result, playback, play=play)
 
     with analysis_tab:
         _render_figures(st, result)
