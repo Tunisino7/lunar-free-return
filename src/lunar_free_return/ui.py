@@ -4,15 +4,22 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import time
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
+
 from lunar_free_return._matplotlib import pyplot as plt
-from lunar_free_return.animation import animate
-from lunar_free_return.constants import MOON_RADIUS
-from lunar_free_return.plotting import create_figures
+from lunar_free_return.constants import EARTH_RADIUS, MOON_ORBIT_RADIUS, MOON_RADIUS
+from lunar_free_return.plotting import create_figures, sampled_indices, trajectory_data
 from lunar_free_return.simulation import simulate, with_case
-from lunar_free_return.types import OrbitalDirection, SimulationConfig, TrajectoryCase
+from lunar_free_return.types import (
+    OrbitalDirection,
+    SimulationConfig,
+    SimulationResult,
+    TrajectoryCase,
+)
 
 
 def _streamlit_runtime_active() -> bool:
@@ -103,17 +110,33 @@ def _sidebar_config(st) -> SimulationConfig:
     Returns
     -------
     SimulationConfig
-        Configuration combining a Schwaniger preset with manual overrides.
+        Selected preset configuration or a manually adjusted configuration
+        seeded from one preset.
     """
     st.sidebar.header("Configuration")
 
+    mode = st.sidebar.radio(
+        "Configuration mode",
+        ["Preset", "Manual"],
+        horizontal=True,
+        help="Use a known Schwaniger case or edit the numerical parameters.",
+    )
+    case_label = "Trajectory preset" if mode == "Preset" else "Start from preset"
     case = st.sidebar.selectbox(
-        "Preset",
+        case_label,
         [case.value for case in TrajectoryCase],
         index=0,
         help="Schwaniger free-return family. Ai is the Apollo 13-style preset.",
     )
     preset = with_case(case)
+
+    if mode == "Preset":
+        st.sidebar.caption(
+            "Preset mode uses the published case parameters without overrides."
+        )
+        return preset
+
+    st.sidebar.subheader("Manual parameters")
 
     speed_factor = st.sidebar.slider(
         "Speed factor",
@@ -173,6 +196,143 @@ def _sidebar_config(st) -> SimulationConfig:
         orbital_direction=_direction_from_label(direction),
         return_altitude_threshold_km=float(return_threshold),
     )
+
+
+def _animation_limits(
+    probe_km: np.ndarray,
+    moon_km: np.ndarray,
+) -> tuple[float, float, float, float]:
+    """Compute stable frame limits for the live trajectory view.
+
+    Parameters
+    ----------
+    probe_km:
+        Probe positions in kilometers with shape ``(N, 2)``.
+    moon_km:
+        Moon positions in kilometers with shape ``(N, 2)``.
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        Minimum x, maximum x, minimum y, and maximum y axis limits in
+        kilometers.
+    """
+    x_all = np.concatenate([probe_km[:, 0], moon_km[:, 0]])
+    y_all = np.concatenate([probe_km[:, 1], moon_km[:, 1]])
+    extent = max(float(x_all.max() - x_all.min()), float(y_all.max() - y_all.min()))
+    padding = max(20_000.0, 0.08 * extent)
+    return (
+        float(x_all.min()) - padding,
+        float(x_all.max()) + padding,
+        float(y_all.min()) - padding,
+        float(y_all.max()) + padding,
+    )
+
+
+def _live_frame_figure(
+    probe_km: np.ndarray,
+    moon_km: np.ndarray,
+    days: np.ndarray,
+    frame_index: int,
+    limits: tuple[float, float, float, float],
+    *,
+    tail_samples: int = 120,
+) -> plt.Figure:
+    """Create one live animation frame from trajectory arrays.
+
+    Parameters
+    ----------
+    probe_km:
+        Probe positions in kilometers with shape ``(N, 2)``.
+    moon_km:
+        Moon positions in kilometers with shape ``(N, 2)``.
+    days:
+        Simulation times in days.
+    frame_index:
+        Index of the sample to show as the current spacecraft position.
+    limits:
+        Axis limits from ``_animation_limits``.
+    tail_samples:
+        Number of recent samples to emphasize behind the current position.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure ready for ``st.pyplot`` rendering.
+    """
+    start = max(0, frame_index - tail_samples)
+    figure, axis = plt.subplots(figsize=(8, 8))
+    figure.patch.set_facecolor("#ffffff")
+    axis.set_facecolor("#f8fafc")
+    axis.set_aspect("equal", adjustable="box")
+    axis.set_xlim(limits[0], limits[1])
+    axis.set_ylim(limits[2], limits[3])
+    axis.grid(True, alpha=0.18)
+    axis.set_xlabel("x (km)")
+    axis.set_ylabel("y (km)")
+    axis.set_title(f"Live trajectory playback - day {days[frame_index]:.2f}")
+
+    theta = np.linspace(0.0, 2.0 * np.pi, 500)
+    axis.plot(
+        MOON_ORBIT_RADIUS / 1e3 * np.cos(theta),
+        MOON_ORBIT_RADIUS / 1e3 * np.sin(theta),
+        "--",
+        color="#a8b3c2",
+        linewidth=0.8,
+        label="Moon orbit",
+    )
+    axis.plot(
+        probe_km[:, 0],
+        probe_km[:, 1],
+        color="#94a3b8",
+        linewidth=0.9,
+        alpha=0.35,
+        label="Full trajectory",
+    )
+    axis.plot(
+        probe_km[start : frame_index + 1, 0],
+        probe_km[start : frame_index + 1, 1],
+        color="#0284c7",
+        linewidth=2.2,
+        label="Current path",
+    )
+    axis.scatter(0.0, 0.0, s=90, color="#2563eb", label="Earth", zorder=4)
+    axis.scatter(
+        moon_km[frame_index, 0],
+        moon_km[frame_index, 1],
+        s=60,
+        color="#64748b",
+        label="Moon",
+        zorder=4,
+    )
+    axis.scatter(
+        probe_km[frame_index, 0],
+        probe_km[frame_index, 1],
+        s=42,
+        color="#dc2626",
+        label="Spacecraft",
+        zorder=5,
+    )
+    axis.add_patch(
+        plt.Circle(
+            (0.0, 0.0),
+            EARTH_RADIUS / 1e3,
+            color="#2563eb",
+            alpha=0.18,
+            zorder=3,
+        )
+    )
+    axis.add_patch(
+        plt.Circle(
+            tuple(moon_km[frame_index]),
+            MOON_RADIUS / 1e3,
+            color="#64748b",
+            alpha=0.18,
+            zorder=3,
+        )
+    )
+    axis.legend(loc="upper right", fontsize=8)
+    return figure
 
 
 def _summary_metrics(st, result) -> None:
@@ -236,8 +396,8 @@ def _render_figures(st, result) -> None:
                 plt.close(figure)
 
 
-def _render_animation(st, result, fps: int) -> None:
-    """Generate and render a GIF animation for the current result.
+def _render_live_animation(st, result: SimulationResult) -> None:
+    """Render an in-page trajectory playback without writing media files.
 
     Parameters
     ----------
@@ -245,16 +405,48 @@ def _render_animation(st, result, fps: int) -> None:
         Imported Streamlit module.
     result:
         Simulation result returned by ``simulate``.
-    fps:
-        GIF frames per second.
 
     Returns
     -------
     None
     """
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        path = animate(result, Path(tmp_dir), fps=fps)
-        st.image(path.read_bytes(), caption="Free-return animation")
+    probe, _, moon, _, days, _ = trajectory_data(result.history, result.moon)
+    max_frames = st.slider(
+        "Playback frames",
+        min_value=40,
+        max_value=240,
+        value=120,
+        step=20,
+        help="Number of rendered frames sampled from the trajectory.",
+    )
+    fps = st.slider(
+        "Playback speed (FPS)",
+        min_value=4,
+        max_value=24,
+        value=12,
+        step=1,
+        help="Frame rate used while streaming the trajectory in the app.",
+    )
+    frame_indices = sampled_indices(len(probe), max_frames=max_frames)
+    limits = _animation_limits(probe, moon)
+
+    placeholder = st.empty()
+    progress = st.progress(0.0)
+    play = st.button("Play trajectory", type="primary")
+
+    if not play:
+        figure = _live_frame_figure(probe, moon, days, int(frame_indices[0]), limits)
+        placeholder.pyplot(figure, clear_figure=True)
+        plt.close(figure)
+        return
+
+    delay = 1.0 / float(fps)
+    for position, frame_index in enumerate(frame_indices, start=1):
+        figure = _live_frame_figure(probe, moon, days, int(frame_index), limits)
+        placeholder.pyplot(figure, clear_figure=True)
+        plt.close(figure)
+        progress.progress(position / len(frame_indices))
+        time.sleep(delay)
 
 
 def render_app() -> None:
@@ -271,15 +463,6 @@ def render_app() -> None:
     st.caption("Explore Schwaniger Earth-Moon free-return trajectories.")
 
     config = _sidebar_config(st)
-    generate_animation = st.sidebar.checkbox("Generate GIF animation", value=False)
-    animation_fps = st.sidebar.slider(
-        "GIF FPS",
-        min_value=6,
-        max_value=30,
-        value=12,
-        step=1,
-        disabled=not generate_animation,
-    )
 
     if (
         st.sidebar.button("Run simulation", type="primary")
@@ -290,11 +473,13 @@ def render_app() -> None:
 
     result = st.session_state.result
     _summary_metrics(st, result)
-    _render_figures(st, result)
+    animation_tab, analysis_tab = st.tabs(["Live animation", "Analysis plots"])
 
-    if generate_animation:
-        with st.spinner("Rendering GIF..."):
-            _render_animation(st, result, animation_fps)
+    with animation_tab:
+        _render_live_animation(st, result)
+
+    with analysis_tab:
+        _render_figures(st, result)
 
 
 def main() -> int:

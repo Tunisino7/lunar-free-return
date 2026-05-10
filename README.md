@@ -36,7 +36,8 @@ The simulator automatically uses the accelerated backend when Numba is
 available and falls back to pure NumPy/Python otherwise.
 
 Install the optional Streamlit interface to experiment with presets and manual
-configuration from a browser:
+configuration from a browser. The UI separates preset selection from manual
+parameters and includes live trajectory playback:
 
 ```bash
 python -m pip install -e ".[ui]"
