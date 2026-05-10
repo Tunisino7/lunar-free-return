@@ -1,4 +1,10 @@
-"""Domain objects for two-dimensional Earth-Moon trajectory propagation."""
+"""Domain objects for two-dimensional Earth-Moon trajectory propagation.
+
+The public model keeps one ``MassiveBody`` definition. When the optional Numba
+extra is installed, that class is decorated into a ``jitclass`` at import time;
+otherwise it remains a normal Python class with the same constructor and
+methods.
+"""
 
 from __future__ import annotations
 
@@ -12,10 +18,22 @@ StateVector = NDArray[np.float64]
 StateHistory = NDArray[np.float64]
 ScalarSeries = NDArray[np.float64]
 
+try:  # pragma: no cover - exercised when the optional accel extra is installed.
+    from numba import float64, types
+    from numba.experimental import jitclass
+except ImportError:  # pragma: no cover - default lightweight install path.
+    NUMBA_AVAILABLE = False
+else:  # pragma: no cover - CI acceleration job exercises this path.
+    NUMBA_AVAILABLE = True
 
-@dataclass(frozen=True)
+
 class MassiveBody:
     """A fixed or circular-orbit massive body.
+
+    The same class body is used by both runtime modes. With Numba available,
+    the class is transformed by ``numba.experimental.jitclass`` using the field
+    specification below the class definition. Without Numba, it remains a plain
+    Python class. This avoids maintaining a duplicated "compiled" body type.
 
     Parameters
     ----------
@@ -37,14 +55,25 @@ class MassiveBody:
         Human-readable body name used in diagnostics and collision reports.
     """
 
-    mass: float
-    radius: float
-    x: float
-    y: float
-    angular_rate: float
-    orbital_radius: float
-    phase: float
-    name: str
+    def __init__(
+        self,
+        mass: float,
+        radius: float,
+        x: float,
+        y: float,
+        angular_rate: float,
+        orbital_radius: float,
+        phase: float,
+        name: str,
+    ) -> None:
+        self.mass = mass
+        self.radius = radius
+        self.x = x
+        self.y = y
+        self.angular_rate = angular_rate
+        self.orbital_radius = orbital_radius
+        self.phase = phase
+        self.name = name
 
     def position_x(self, time: float) -> float:
         """Return the body x coordinate at a simulation time.
@@ -94,6 +123,24 @@ class MassiveBody:
             Two-element position vector ``[x, y]`` in meters.
         """
         return np.array([self.position_x(time), self.position_y(time)], dtype=float)
+
+
+if NUMBA_AVAILABLE:
+    # Keep this specification adjacent to the class it decorates. The field
+    # names intentionally match the Python attributes exactly so the rest of
+    # the code can treat both runtime modes identically.
+    MassiveBody = jitclass(  # type: ignore[no-redef]
+        [
+            ("mass", float64),
+            ("radius", float64),
+            ("x", float64),
+            ("y", float64),
+            ("angular_rate", float64),
+            ("orbital_radius", float64),
+            ("phase", float64),
+            ("name", types.unicode_type),
+        ]
+    )(MassiveBody)
 
 
 @dataclass(frozen=True)

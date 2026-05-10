@@ -26,6 +26,15 @@ Earth without a powered correction in this simplified model.
 python -m pip install -e .
 ```
 
+Install the optional Numba backend for faster repeated simulations:
+
+```bash
+python -m pip install -e ".[accel]"
+```
+
+The simulator automatically uses the accelerated backend when Numba is
+available and falls back to pure NumPy/Python otherwise.
+
 ## Run
 
 Print the default Apollo 13-style case:

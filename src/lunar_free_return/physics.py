@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 import numpy as np
 
-from lunar_free_return.bodies import MassiveBody, SimulationHistory, StateVector
+from lunar_free_return.bodies import (
+    NUMBA_AVAILABLE,
+    MassiveBody,
+    SimulationHistory,
+    StateVector,
+)
 from lunar_free_return.constants import (
     EARTH,
     MOON_ANGULAR_RATE,
@@ -16,13 +22,46 @@ from lunar_free_return.constants import (
     G,
 )
 
+if NUMBA_AVAILABLE:  # pragma: no cover - exercised in the optional accel job.
+    from numba import njit
+else:  # pragma: no cover - default lightweight install path.
+    njit = None
 
+_G = G
+
+
+def _optional_njit(function):
+    """Apply ``numba.njit`` when the optional acceleration extra is installed.
+
+    Parameters
+    ----------
+    function:
+        Function to compile when Numba is importable.
+
+    Returns
+    -------
+    Callable
+        The compiled dispatcher when Numba is available, otherwise the original
+        function unchanged. Keeping this as a no-op fallback lets the numerical
+        implementation stay single-source.
+    """
+    if NUMBA_AVAILABLE:
+        return njit(cache=True)(function)
+    return function
+
+
+@_optional_njit
 def acceleration(
     time: float,
     state: StateVector,
-    bodies: Sequence[MassiveBody],
-) -> StateVector:
+    bodies: Sequence[MassiveBody],  # noqa: UP006 - Numba needs concrete runtime type.
+):
     """Compute the state derivative in an N-body gravity field.
+
+    This function is the only acceleration implementation used by the
+    propagator. In an accelerated install it is JIT-compiled by
+    ``_optional_njit``; in a lightweight install the exact same function body
+    runs as regular Python.
 
     Parameters
     ----------
@@ -46,10 +85,10 @@ def acceleration(
         dx = x_probe - body.position_x(time)
         dy = y_probe - body.position_y(time)
         distance_squared = dx * dx + dy * dy
-        inverse_distance_cubed = 1.0 / (distance_squared * np.sqrt(distance_squared))
-        ax -= G * body.mass * dx * inverse_distance_cubed
-        ay -= G * body.mass * dy * inverse_distance_cubed
-    return np.array([vx, vy, ax, ay], dtype=float)
+        inverse_distance_cubed = 1.0 / (distance_squared * math.sqrt(distance_squared))
+        ax -= _G * body.mass * dx * inverse_distance_cubed
+        ay -= _G * body.mass * dy * inverse_distance_cubed
+    return np.array([vx, vy, ax, ay])
 
 
 def circular_speed(radius: float, central_mass: float) -> float:

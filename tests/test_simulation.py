@@ -1,6 +1,7 @@
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from lunar_free_return import (
     OrbitalDirection,
@@ -10,7 +11,9 @@ from lunar_free_return import (
     simulate,
     with_case,
 )
-from lunar_free_return.constants import EARTH_RADIUS, MOON_ORBIT_RADIUS
+from lunar_free_return.bodies import NUMBA_AVAILABLE
+from lunar_free_return.constants import EARTH, EARTH_RADIUS, MOON_ORBIT_RADIUS
+from lunar_free_return.propagation import propagate_trajectory
 from lunar_free_return.simulation import classify_return
 
 
@@ -46,3 +49,19 @@ def test_ai_preset_returns_to_earth_with_coarse_step() -> None:
     assert result.return_type == ReturnType.FREE_RETURN
     assert result.earth_return_time is not None
     assert result.min_moon_distance > 0
+
+
+@pytest.mark.skipif(not NUMBA_AVAILABLE, reason="Numba extra is not installed")
+def test_numba_backend_runs_with_public_propagation_api() -> None:
+    config = with_case(TrajectoryCase.Ai, duration=600.0)
+    initial_state, moon, _ = build_initial_conditions(config)
+
+    result = propagate_trajectory(
+        initial_state=initial_state,
+        bodies=[EARTH, moon],
+        duration=config.duration,
+        time_step=60.0,
+    )
+
+    assert result.states.shape == (11, 4)
+    assert result.collision is None
