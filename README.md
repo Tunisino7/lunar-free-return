@@ -12,6 +12,21 @@ The project reproduces Schwaniger's four canonical free-return families:
 | `Bi` | Prograde | Cislunar | Earth-side lunar flyby |
 | `Bii` | Retrograde | Cislunar | Earth-side retrograde variant |
 
+## Example Outputs
+
+The default `Ai` preset is an Apollo 13-style circumlunar free return: the probe
+passes behind the Moon, bends around the far side, and returns ballistically to
+Earth without a powered correction in this simplified model.
+
+![Apollo 13-style free-return trajectory](docs/assets/free_return_Ai_trajectory.png)
+
+The supporting plots show the Earth/Moon distance history and specific
+mechanical energy drift for the same run.
+
+![Apollo 13-style distance history](docs/assets/free_return_Ai_distances.png)
+
+![Apollo 13-style energy history](docs/assets/free_return_Ai_energy.png)
+
 ## Install
 
 ```bash
